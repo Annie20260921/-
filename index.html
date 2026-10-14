@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>個人複利系統｜習慣追蹤資訊主頁</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap');
+    body {
+      font-family: 'Inter', 'Noto Sans TC', sans-serif;
+      background-color: #f8fafc;
+    }
+    .check-transition {
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .check-transition:active {
+      transform: scale(0.95);
+    }
+  </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen pb-12">
+
+  <!-- 頂部導覽列 -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-10">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex justify-between items-center">
+      <div class="flex items-center space-x-3">
+        <div class="bg-indigo-600 text-white p-2 rounded-xl shadow-sm">
+          <i data-lucide="layers" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold text-slate-900">Habit Compound</h1>
+          <p id="currentDateDisplay" class="text-xs text-slate-500"></p>
+        </div>
+      </div>
+      <button onclick="resetDefaultData()" class="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1 transition">
+        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> 重置預設富習慣
+      </button>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
+
+    <!-- 頂部 KPI 統計卡片 -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <!-- 今日進度 -->
+      <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">今日目標進度</p>
+          <div class="flex items-baseline gap-2 mt-1">
+            <h2 id="todayProgressText" class="text-3xl font-bold text-slate-900">0/0</h2>
+            <span id="todayPercentBadge" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600">0%</span>
+          </div>
+        </div>
+        <div class="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+          <i data-lucide="check-circle-2" class="w-6 h-6"></i>
+        </div>
+      </div>
+
+      <!-- 最高連續記錄 -->
+      <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <div class="min-w-0 pr-2">
+          <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">目前最長連續 (Streak)</p>
+          <div class="flex items-baseline gap-2 mt-1">
+            <h2 id="bestStreakText" class="text-3xl font-bold text-slate-900 shrink-0">0 天</h2>
+            <span id="bestStreakHabit" class="text-xs text-slate-500 truncate">尚無記錄</span>
+          </div>
+        </div>
+        <div class="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-500 shrink-0">
+          <i data-lucide="flame" class="w-6 h-6"></i>
+        </div>
+      </div>
+
+      <!-- 本週累計完成 -->
+      <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">過去 7 天平均達成率</p>
+          <div class="flex items-baseline gap-2 mt-1">
+            <h2 id="weeklyRateText" class="text-3xl font-bold text-slate-900">0%</h2>
+            <span id="weeklyTotalChecks" class="text-xs text-emerald-600 font-medium">共完成 0 次</span>
+          </div>
+        </div>
+        <div class="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+          <i data-lucide="trending-up" class="w-6 h-6"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- 主內容區：左欄今日打卡 + 右欄圖表與週矩陣 -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- 左欄：今日打卡清單與新增習慣 (佔 5 欄) -->
+      <div class="lg:col-span-5 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+              <i data-lucide="list-todo" class="w-5 h-5 text-indigo-600"></i>
+              今日打卡目標
+            </h3>
+            <span class="text-xs text-slate-400">點擊卡片即可打卡</span>
+          </div>
+
+          <!-- 今日進度條 -->
+          <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-5">
+            <div id="todayProgressBar" class="bg-indigo-600 h-full transition-all duration-300" style="width: 0%"></div>
+          </div>
+
+          <!-- 習慣清單容器 -->
+          <div id="todayHabitsList" class="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
+            <!-- 由 JS 動態生成 -->
+          </div>
+        </div>
+
+        <!-- 新增習慣表單 -->
+        <form id="addHabitForm" class="mt-6 pt-4 border-t border-slate-100">
+          <label class="block text-xs font-semibold text-slate-500 mb-2">新增每日富習慣</label>
+          <div class="flex flex-col sm:flex-row gap-2">
+            <input 
+              type="text" 
+              id="newHabitName" 
+              placeholder="輸入具體可量化的行動目標..." 
+              required
+              class="flex-1 text-sm bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
+            >
+            <div class="flex gap-2">
+              <select id="newHabitCategory" class="text-sm bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2.5 text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="身體基石">⚡ 身體基石</option>
+                <option value="專業與輸入">🧠 專業與輸入</option>
+                <option value="系統與思考">🗂️ 系統與思考</option>
+                <option value="財富與投資">📈 財富與投資</option>
+              </select>
+              <button 
+                type="submit" 
+                class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition flex items-center gap-1 shrink-0 shadow-sm"
+              >
+                <i data-lucide="plus" class="w-4 h-4"></i> 新增
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <!-- 右欄：每週趨勢圖表 + 7日連續矩陣 (佔 7 欄) -->
+      <div class="lg:col-span-7 space-y-6">
+        
+        <!-- 每週達成率趨勢圖 (Chart.js) -->
+        <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                <i data-lucide="bar-chart-3" class="w-5 h-5 text-indigo-600"></i>
+                過去 7 天達成率趨勢
+              </h3>
+            </div>
+            <span class="text-xs text-slate-400">單位：完成百分比 (%)</span>
+          </div>
+          <div class="h-52">
+            <canvas id="weeklyChart"></canvas>
+          </div>
+        </div>
+
+        <!-- 每週連續記錄矩陣 (7-Day Streak Matrix) -->
+        <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm overflow-x-auto">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+              <i data-lucide="calendar-check" class="w-5 h-5 text-indigo-600"></i>
+              每週連續記錄表
+            </h3>
+            <span class="text-xs text-slate-400">點擊過去日期的圓點可補打卡</span>
+          </div>
+
+          <table class="w-full text-left border-collapse min-w-[500px]">
+            <thead>
+              <tr id="matrixHeaderRow" class="border-b border-slate-100 text-xs text-slate-400 font-medium">
+                <!-- 由 JS 動態生成表頭 -->
+              </tr>
+            </thead>
+            <tbody id="matrixBody" class="divide-y divide-slate-100 text-sm">
+              <!-- 由 JS 動態生成各習慣 7 日狀態 -->
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    // --- 日期工具函數 ---
+    function getFormattedDate(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    function getPast7Days() {
+      const days = [];
+      const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        days.push({
+          dateStr: getFormattedDate(d),
+          dayName: i === 0 ? '今日' : `週${dayNames[d.getDay()]}`,
+          shortDate: `${d.getMonth() + 1}/${d.getDate()}`
+        });
+      }
+      return days;
+    }
+
+    const todayStr = getFormattedDate(new Date());
+
+    // --- 預設範例資料（方案 B：5 大客製化富習慣） ---
+    function getDefaultData() {
+      const past7 = getPast7Days();
+      return [
+        {
+          id: 'h1',
+          name: '晚間運動 20 分鐘、原型蛋白質 65g & 喝水 2000ml',
+          category: '身體基石',
+          history: {
+            [past7[0].dateStr]: true,
+            [past7[1].dateStr]: true,
+            [past7[2].dateStr]: false,
+            [past7[3].dateStr]: true,
+            [past7[4].dateStr]: true,
+            [past7[5].dateStr]: true,
+            [past7[6].dateStr]: true
+          }
+        },
+        {
+          id: 'h2',
+          name: '24:00 前就寢並睡滿 7 小時（睡前少滑手機）',
+          category: '身體基石',
+          history: {
+            [past7[0].dateStr]: true,
+            [past7[1].dateStr]: true,
+            [past7[2].dateStr]: true,
+            [past7[3].dateStr]: false,
+            [past7[4].dateStr]: true,
+            [past7[5].dateStr]: true,
+            [past7[6].dateStr]: false
+          }
+        },
+        {
+          id: 'h3',
+          name: '專業技術閱讀或英語聽力練習 20 分鐘',
+          category: '專業與輸入',
+          history: {
+            [past7[0].dateStr]: true,
+            [past7[1].dateStr]: false,
+            [past7[2].dateStr]: true,
+            [past7[3].dateStr]: true,
+            [past7[4].dateStr]: true,
+            [past7[5].dateStr]: true,
+            [past7[6].dateStr]: false
+          }
+        },
+        {
+          id: 'h4',
+          name: '完成今日 3 個核心任務 (MIT) 與 1 則卡片筆記',
+          category: '系統與思考',
+          history: {
+            [past7[0].dateStr]: true,
+            [past7[1].dateStr]: true,
+            [past7[2].dateStr]: true,
+            [past7[3].dateStr]: true,
+            [past7[4].dateStr]: true,
+            [past7[5].dateStr]: true,
+            [past7[6].dateStr]: true
+          }
+        },
+        {
+          id: 'h5',
+          name: '15 分鐘市場/總經觀察與零衝動消費檢視',
+          category: '財富與投資',
+          history: {
+            [past7[0].dateStr]: false,
+            [past7[1].dateStr]: true,
+            [past7[2].dateStr]: true,
+            [past7[3].dateStr]: true,
+            [past7[4].dateStr]: true,
+            [past7[5].dateStr]: true,
+            [past7[6].dateStr]: false
+          }
+        }
+      ];
+    }
+
+    // --- 狀態管理 (升級為 v2 鍵值以載入新預設清單) ---
+    const STORAGE_KEY = 'habit_flow_dashboard_v2';
+    let habits = JSON.parse(localStorage.getItem(STORAGE_KEY)) || getDefaultData();
+    let weeklyChartInstance = null;
+
+    function saveData() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(habits));
+    }
+
+    function resetDefaultData() {
+      if (confirm('確定要將所有習慣重置為預設的「5 大富習慣」範例資料嗎？')) {
+        habits = getDefaultData();
+        saveData();
+        renderAll();
+      }
+    }
+
+    // --- 計算連續天數 (Streak) ---
+    function calculateStreak(habit) {
+      let streak = 0;
+      const d = new Date();
+      
+      const todayChecked = !!habit.history[getFormattedDate(d)];
+      if (!todayChecked) {
+        d.setDate(d.getDate() - 1);
+      }
+
+      while (true) {
+        const dateStr = getFormattedDate(d);
+        if (habit.history[dateStr]) {
+          streak++;
+          d.setDate(d.getDate() - 1);
+        } else {
+          break;
+        }
+      }
+      return streak;
+    }
+
+    // --- 互動操作 ---
+    function toggleHabitDate(habitId, dateStr) {
+      const habit = habits.find(h => h.id === habitId);
+      if (habit) {
+        habit.history[dateStr] = !habit.history[dateStr];
+        saveData();
+        renderAll();
+      }
+    }
+
+    function deleteHabit(habitId, event) {
+      event.stopPropagation();
+      habits = habits.filter(h => h.id !== habitId);
+      saveData();
+      renderAll();
+    }
+
+    document.getElementById('addHabitForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const nameInput = document.getElementById('newHabitName');
+      const categoryInput = document.getElementById('newHabitCategory');
+      const name = nameInput.value.trim();
+      if (!name) return;
+
+      habits.push({
+        id: 'h_' + Date.now(),
+        name: name,
+        category: categoryInput.value,
+        history: {}
+      });
+
+      nameInput.value = '';
+      saveData();
+      renderAll();
+    });
+
+    // --- 方案 B 類別顏色與圖示對應 ---
+    function getCategoryBadge(category) {
+      const styles = {
+        '身體基石': 'bg-emerald-50 text-emerald-600 border border-emerald-200/60',
+        '專業與輸入': 'bg-indigo-50 text-indigo-600 border border-indigo-200/60',
+        '系統與思考': 'bg-amber-50 text-amber-600 border border-amber-200/60',
+        '財富與投資': 'bg-violet-50 text-violet-600 border border-violet-200/60'
+      };
+      return styles[category] || 'bg-slate-100 text-slate-600';
+    }
+
+    // --- 渲染主畫面 ---
+    function renderAll() {
+      const past7 = getPast7Days();
+
+      // 1. 顯示今日日期
+      const now = new Date();
+      document.getElementById('currentDateDisplay').textContent = 
+        `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 · 專注力與產出導向系統`;
+
+      // 2. 渲染今日打卡清單
+      const listContainer = document.getElementById('todayHabitsList');
+      listContainer.innerHTML = '';
+
+      let todayDoneCount = 0;
+
+      if (habits.length === 0) {
+        listContainer.innerHTML = `
+          <div class="text-center py-8 text-slate-400 text-sm">
+            目前還沒有習慣目標，請從下方新增！
+          </div>`;
+      }
+
+      habits.forEach(habit => {
+        const isDoneToday = !!habit.history[todayStr];
+        if (isDoneToday) todayDoneCount++;
+        const streak = calculateStreak(habit);
+
+        const card = document.createElement('div');
+        card.onclick = () => toggleHabitDate(habit.id, todayStr);
+        card.className = `check-transition cursor-pointer p-3.5 rounded-xl border flex items-center justify-between select-none ${
+          isDoneToday 
+            ? 'bg-indigo-50/40 border-indigo-200 text-slate-900' 
+            : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
+        }`;
+
+        card.innerHTML = `
+          <div class="flex items-center gap-3 min-w-0 pr-2">
+            <div class="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition ${
+              isDoneToday ? 'bg-indigo-600 text-white' : 'border-2 border-slate-300 bg-white'
+            }">
+              ${isDoneToday ? '<i data-lucide="check" class="w-4 h-4"></i>' : ''}
+            </div>
+            <div class="min-w-0">
+              <p class="text-sm font-semibold leading-snug ${isDoneToday ? 'line-through text-slate-400' : ''}">
+                ${habit.name}
+              </p>
+              <div class="flex items-center gap-2 mt-1.5">
+                <span class="text-[11px] font-medium px-2 py-0.5 rounded-md ${getCategoryBadge(habit.category)}">
+                  ${habit.category}
+                </span>
+                <span class="text-xs text-slate-400 flex items-center gap-0.5">
+                  🔥 連續 ${streak} 天
+                </span>
+              </div>
+            </div>
+          </div>
+          <button onclick="deleteHabit('${habit.id}', event)" class="text-slate-300 hover:text-rose-500 p-1.5 rounded-lg transition shrink-0" title="刪除習慣">
+            <i data-lucide="trash-2" class="w-4 h-4"></i>
+          </button>
+        `;
+        listContainer.appendChild(card);
+      });
+
+      // 3. 更新頂部統計卡片與進度條
+      const totalHabits = habits.length;
+      const todayPercent = totalHabits > 0 ? Math.round((todayDoneCount / totalHabits) * 100) : 0;
+      document.getElementById('todayProgressText').textContent = `${todayDoneCount}/${totalHabits}`;
+      document.getElementById('todayPercentBadge').textContent = `${todayPercent}%`;
+      document.getElementById('todayProgressBar').style.width = `${todayPercent}%`;
+
+      // 計算最長 Streak
+      let maxStreak = 0;
+      let maxStreakName = '尚無連續記錄';
+      habits.forEach(h => {
+        const s = calculateStreak(h);
+        if (s > maxStreak) {
+          maxStreak = s;
+          maxStreakName = h.name;
+        }
+      });
+      document.getElementById('bestStreakText').textContent = `${maxStreak} 天`;
+      document.getElementById('bestStreakHabit').textContent = maxStreak > 0 ? maxStreakName : '尚無連續記錄';
+
+      // 計算過去 7 天達成率
+      let weekTotalDone = 0;
+      const dailyPercentages = [];
+
+      past7.forEach(day => {
+        let dayDone = 0;
+        habits.forEach(h => {
+          if (h.history[day.dateStr]) {
+            dayDone++;
+            weekTotalDone++;
+          }
+        });
+        const pct = totalHabits > 0 ? Math.round((dayDone / totalHabits) * 100) : 0;
+        dailyPercentages.push(pct);
+      });
+
+      const weekMaxPossible = totalHabits * 7;
+      const weeklyAvgRate = weekMaxPossible > 0 ? Math.round((weekTotalDone / weekMaxPossible) * 100) : 0;
+      document.getElementById('weeklyRateText').textContent = `${weeklyAvgRate}%`;
+      document.getElementById('weeklyTotalChecks').textContent = `過去 7 天共完成 ${weekTotalDone} 次`;
+
+      // 4. 渲染 7 日連續記錄矩陣
+      const headerRow = document.getElementById('matrixHeaderRow');
+      headerRow.innerHTML = `<th class="pb-3 font-semibold text-slate-600">習慣項目</th>`;
+      past7.forEach(d => {
+        headerRow.innerHTML += `
+          <th class="pb-3 text-center">
+            <div class="text-[11px] ${d.dayName === '今日' ? 'text-indigo-600 font-bold' : 'text-slate-400'}">${d.dayName}</div>
+            <div class="text-[10px] text-slate-400">${d.shortDate}</div>
+          </th>`;
+      });
+      headerRow.innerHTML += `<th class="pb-3 text-right font-semibold text-slate-600">連續</th>`;
+
+      const matrixBody = document.getElementById('matrixBody');
+      matrixBody.innerHTML = '';
+
+      habits.forEach(habit => {
+        const tr = document.createElement('tr');
+        const streak = calculateStreak(habit);
+        
+        let cellsHtml = `
+          <td class="py-3 pr-3 font-medium text-slate-800 max-w-[180px] truncate" title="${habit.name}">
+            ${habit.name}
+          </td>`;
+
+        past7.forEach(d => {
+          const checked = !!habit.history[d.dateStr];
+          cellsHtml += `
+            <td class="py-3 text-center">
+              <button 
+                onclick="toggleHabitDate('${habit.id}', '${d.dateStr}')"
+                class="check-transition w-7 h-7 rounded-full inline-flex items-center justify-center ${
+                  checked 
+                    ? 'bg-emerald-500 text-white shadow-sm' 
+                    : 'bg-slate-100 text-slate-300 hover:bg-slate-200'
+                }"
+                title="${d.dateStr} 點擊切換"
+              >
+                ${checked ? '<i data-lucide="check" class="w-4 h-4"></i>' : '<span class="w-1.5 h-1.5 rounded-full bg-slate-300"></span>'}
+              </button>
+            </td>`;
+        });
+
+        cellsHtml += `
+          <td class="py-3 text-right font-bold ${streak > 0 ? 'text-amber-500' : 'text-slate-400'}">
+            ${streak} <span class="text-xs font-normal">天</span>
+          </td>`;
+
+        tr.innerHTML = cellsHtml;
+        matrixBody.appendChild(tr);
+      });
+
+      // 5. 更新 Chart.js 圖表
+      renderWeeklyChart(past7.map(d => `${d.dayName} (${d.shortDate})`), dailyPercentages);
+
+      // 重新初始化圖示
+      lucide.createIcons();
+    }
+
+    // --- Chart.js 圖表繪製與更新 ---
+    function renderWeeklyChart(labels, dataPoints) {
+      const ctx = document.getElementById('weeklyChart').getContext('2d');
+      
+      if (weeklyChartInstance) {
+        weeklyChartInstance.data.labels = labels;
+        weeklyChartInstance.data.datasets[0].data = dataPoints;
+        weeklyChartInstance.update();
+        return;
+      }
+
+      weeklyChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '當日達成率 (%)',
+            data: dataPoints,
+            backgroundColor: function(context) {
+              const value = context.raw;
+              if (value === 100) return '#10b981'; // 100% 翡翠綠
+              if (value >= 60) return '#4f46e5';  // 60% 以上靛藍 (完成3項以上)
+              return '#94a3b8';                   // 低於 60% 灰藍
+            },
+            borderRadius: 8,
+            barThickness: 28
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => ` 達成率: ${ctx.raw}%`
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              grid: { color: '#f1f5f9' },
+              ticks: {
+                stepSize: 20,
+                callback: (val) => val + '%',
+                font: { size: 11 }
+              }
+            },
+            x: {
+              grid: { display: false },
+              ticks: { font: { size: 11 } }
+            }
+          }
+        }
+      });
+    }
+
+    // 啟動渲染
+    renderAll();
+  </script>
+</body>
+</html>
